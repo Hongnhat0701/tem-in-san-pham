@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>In tem sản xuất chuyền dập</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    body { margin:0; padding:0; font-family:"Times New Roman", serif; background:#f4f4f4; }
+    header { background:#005b96; color:#fff; padding:10px 20px; text-align:center; font-size:18pt; }
+    .container { padding:20px; }
+    .entries { margin-bottom:20px; }
+    .form-entry { display:grid; grid-template-columns:repeat(9,1fr); gap:8px; margin-bottom:12px; }
+    .form-entry input { padding:6px; font-size:14px; border:1px solid #ccc; border-radius:4px; }
+    button { margin-right:10px; padding:8px 16px; font-size:14px; border:none; border-radius:4px; background:#005b96; color:#fff; cursor:pointer; }
+    button:hover { background:#004070; }
+    .preview { position:absolute; left:-9999px; top:0; }
+
+    .page { width:210mm; height:297mm; box-sizing:border-box; page-break-after:always; }
+    .grid-42 { display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(14,21.214mm); gap:0; }
+    .cell { border:0.5px solid #000; padding:1.5mm 1mm; box-sizing:border-box; font-size:10pt; line-height:1.1; display:flex; flex-direction:column; justify-content:space-between; }
+    .cell.empty { border:none; }
+    .cell div { display:flex; justify-content:space-between; margin:0; padding:0; }
+  </style>
+</head>
+<body>
+  <header>In tem sản xuất chuyền dập</header>
+  <div class="container">
+    <div class="entries" id="entries">
+      <div class="form-entry">
+        <input placeholder="Mã dây" class="maDay" />
+        <input placeholder="SL" type="number" class="qty" />
+        <input placeholder="Máy" class="may" />
+        <input placeholder="N.LÀM" class="nguoiLam" />
+        <input placeholder="Ngày" type="date" class="ngay" />
+        <input placeholder="Số bó" type="number" class="numBo" />
+        <input placeholder="LOT T" class="lotT" />
+        <input placeholder="LOT S" class="lotS" />
+        <input placeholder="KT" class="kt" />
+      </div>
+    </div>
+    <button id="addEntry">Thêm mã</button>
+    <button id="btnGen">Tạo tem</button>
+  </div>
+  <div id="preview" class="preview"></div>
+
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      const entriesDiv = document.getElementById('entries');
+      const addEntryBtn = document.getElementById('addEntry');
+      const genBtn = document.getElementById('btnGen');
+      const preview = document.getElementById('preview');
+      const jsPDF = window.jspdf.jsPDF;
+
+      addEntryBtn.onclick = () => {
+        const template = entriesDiv.firstElementChild.cloneNode(true);
+        template.querySelectorAll('input').forEach(i => i.value = '');
+        entriesDiv.appendChild(template);
+      };
+
+      genBtn.onclick = async () => {
+        const entries = Array.from(entriesDiv.children).map(div => ({
+          maDay: div.querySelector('.maDay').value.trim(),
+          qty: parseInt(div.querySelector('.qty').value) || 0,
+          may: div.querySelector('.may').value.trim(),
+          nguoiLam: div.querySelector('.nguoiLam').value.trim(),
+          ngay: div.querySelector('.ngay').value,
+          numBo: parseInt(div.querySelector('.numBo').value) || 0,
+          lotT: div.querySelector('.lotT').value.trim(),
+          lotS: div.querySelector('.lotS').value.trim(),
+          kt: div.querySelector('.kt').value.trim()
+        })).filter(e => e.maDay && e.numBo > 0);
+        if (!entries.length) return alert('Nhập ít nhất một mã dây và Số bó > 0');
+
+        const allTem = [];
+        entries.forEach(e => { for (let i = 1; i <= e.numBo; i++) allTem.push({ ...e, idx: i }); });
+
+        const perPage = 42, pages = Math.ceil(allTem.length / perPage);
+        preview.innerHTML = '';
+
+        for (let p = 0; p < pages; p++) {
+          const pageDiv = document.createElement('div');
+          pageDiv.className = 'page grid-42';
+
+          for (let i = 0; i < perPage; i++) {
+            const d = allTem[p * perPage + i];
+            const cell = document.createElement('div');
+            cell.className = d ? 'cell' : 'cell empty';
+            if (d) {
+              let ngayText = '';
+              if (d.ngay) {
+                const dt = new Date(d.ngay);
+                ngayText = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`;
+              }
+              cell.innerHTML = `
+                <div><span>Mã dây:${d.maDay}</span><span>SL:${d.qty}</span></div>
+                <div><span>Bó:${d.idx}</span><span>Máy:${d.may}</span></div>
+                <div><span>LOT T:${d.lotT}</span><span>LOT S:${d.lotS}</span></div>
+                <div><span>KT:${d.kt}</span><span></span></div>
+                <div><span>Ngày${ngayText ? ':' + ngayText : ''}</span><span>N.LÀM:${d.nguoiLam}</span></div>
+              `;
+            }
+            pageDiv.appendChild(cell);
+          }
+
+          preview.appendChild(pageDiv);
+        }
+
+        const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+        for (let p = 0; p < pages; p++) {
+          const canvas = await html2canvas(preview.children[p], { scale: 2 });
+          pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
+          if (p < pages - 1) pdf.addPage();
+        }
+        pdf.save('tem-san-pham.pdf');
+      };
+    });
+  </script>
+</body>
+</html>
